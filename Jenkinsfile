@@ -43,7 +43,7 @@ pipeline {
             steps {
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'dockerhub-pat-v2',
+                        credentialsId: 'dockerhub-creds',
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS'
                     )
@@ -83,7 +83,7 @@ pipeline {
 
     post {
         success {
-            echo 'SUCCESS: Java build, Docker push, and Kubernetes deployment completed.'
+            echo 'SUCCESS: Build, Docker push, and Kubernetes deployment completed.'
         }
 
         failure {
