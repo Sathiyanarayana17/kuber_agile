@@ -43,24 +43,20 @@ pipeline {
             steps {
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'dockerhub-creds',
+                        credentialsId: 'dockerhub-pat-v2',
                         usernameVariable: 'DOCKER_USER',
                         passwordVariable: 'DOCKER_PASS'
                     )
                 ]) {
-                    powershell '''
-                        $env:DOCKER_PASS |
-                            docker login --username $env:DOCKER_USER --password-stdin
+                    bat '''
+                        @echo off
 
-                        if ($LASTEXITCODE -ne 0) {
-                            exit $LASTEXITCODE
-                        }
+                        powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$env:DOCKER_PASS | docker login --username $env:DOCKER_USER --password-stdin; if ($LASTEXITCODE -ne 0) { exit 1 }"
 
-                        docker push $env:DOCKER_IMAGE
+                        if errorlevel 1 exit /b 1
 
-                        if ($LASTEXITCODE -ne 0) {
-                            exit $LASTEXITCODE
-                        }
+                        docker push %DOCKER_IMAGE%
+                        if errorlevel 1 exit /b 1
 
                         docker logout
                     '''
@@ -87,11 +83,15 @@ pipeline {
 
     post {
         success {
-            echo 'SUCCESS: Build, Docker push, and Kubernetes deployment completed.'
+            echo 'SUCCESS: Java build, Docker push, and Kubernetes deployment completed.'
         }
 
         failure {
             echo 'FAILED: Check the first failed stage in Console Output.'
+        }
+
+        always {
+            echo 'Pipeline execution finished.'
         }
     }
 }
