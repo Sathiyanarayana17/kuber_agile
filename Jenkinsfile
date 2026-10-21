@@ -1,29 +1,97 @@
 
-stage('Push to Docker Hub') {
-    steps {
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'dockerhub-creds',
-                usernameVariable: 'DOCKER_USER',
-                passwordVariable: 'DOCKER_PASS'
-            )
-        ]) {
-            powershell '''
-                $env:DOCKER_PASS |
-                    docker login --username $env:DOCKER_USER --password-stdin
+pipeline {
+    agent any
 
-                if ($LASTEXITCODE -ne 0) {
-                    exit $LASTEXITCODE
+    options {
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        DOCKER_IMAGE = 'sathiya32/java-app:latest'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                bat 'mvn clean package'
+            }
+        }
+
+        stage('Verify JAR') {
+            steps {
+                bat '''
+                    if not exist target\\simple-java-app-1.0.jar exit /b 1
+                    jar tf target\\simple-java-app-1.0.jar | findstr /x "App.class"
+                    if errorlevel 1 exit /b 1
+                '''
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                bat 'docker build -t %DOCKER_IMAGE% .'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
+                    powershell '''
+                        $env:DOCKER_PASS |
+                            docker login --username $env:DOCKER_USER --password-stdin
+
+                        if ($LASTEXITCODE -ne 0) {
+                            exit $LASTEXITCODE
+                        }
+
+                        docker push $env:DOCKER_IMAGE
+
+                        if ($LASTEXITCODE -ne 0) {
+                            exit $LASTEXITCODE
+                        }
+
+                        docker logout
+                    '''
                 }
+            }
+        }
 
-                docker push $env:DOCKER_IMAGE
+        stage('Deploy to Kubernetes') {
+            steps {
+                bat 'kubectl apply -f deployment.yaml'
+                bat 'kubectl rollout restart deployment/java-app'
+                bat 'kubectl rollout status deployment/java-app --timeout=180s'
+            }
+        }
 
-                if ($LASTEXITCODE -ne 0) {
-                    exit $LASTEXITCODE
-                }
+        stage('Verify Deployment') {
+            steps {
+                bat 'kubectl get deployments'
+                bat 'kubectl get pods'
+                bat 'kubectl get services'
+            }
+        }
+    }
 
-                docker logout
-            '''
+    post {
+        success {
+            echo 'SUCCESS: Build, Docker push, and Kubernetes deployment completed.'
+        }
+
+        failure {
+            echo 'FAILED: Check the first failed stage in Console Output.'
         }
     }
 }
