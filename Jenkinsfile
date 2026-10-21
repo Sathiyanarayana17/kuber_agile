@@ -8,6 +8,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'sathiya32/java-app:latest'
+        KUBECONFIG = 'C:/Users/sathi/.kube/config'
     }
 
     stages {
@@ -64,6 +65,13 @@ pipeline {
             }
         }
 
+        stage('Check Kubernetes') {
+            steps {
+                bat 'kubectl config current-context'
+                bat 'kubectl get nodes'
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             steps {
                 bat 'kubectl apply -f deployment.yaml'
@@ -83,7 +91,7 @@ pipeline {
 
     post {
         success {
-            echo 'SUCCESS: Build, Docker push, and Kubernetes deployment completed.'
+            echo 'SUCCESS: Maven build, Docker push, and Kubernetes deployment completed.'
         }
 
         failure {
